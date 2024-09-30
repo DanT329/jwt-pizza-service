@@ -13,6 +13,7 @@ let testUserId;
 let adminAuthToken;
 let franchiseId;
 let storeId;
+let adminUser;
 
 function randomName() {
     return Math.random().toString(36).substring(2, 12);
@@ -37,7 +38,7 @@ function randomName() {
 
     //login admin and get token
       // Create an admin user
-    const adminUser = await createAdminUser();
+    adminUser = await createAdminUser();
 
   // Log in the admin user and get the token
     const adminLoginRes = await request(app)
@@ -56,7 +57,7 @@ function randomName() {
   test('should create a new franchise when the user is an admin', async () => {
     const newFranchise = {
       name: randomName(),
-      admins: [{ email: 'f@jwt.com' }, {email: testUser.email}],
+      admins: [{ email: adminUser.email }, {email: testUser.email}],
     };
   
     const res = await request(app)
@@ -67,7 +68,7 @@ function randomName() {
     // Assert response status and data
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('name', newFranchise.name);
-    expect(res.body.admins[0]).toHaveProperty('email', 'f@jwt.com');
+    expect(res.body.admins[0]).toHaveProperty('email', adminUser.email);
     expect(res.body).toHaveProperty('id'); 
     franchiseId = res.body.id; //for other tests
   });
