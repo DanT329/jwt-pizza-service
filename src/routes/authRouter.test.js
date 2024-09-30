@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../service');
-const { DB, Role } = require('../database/database.js');
+const { DB} = require('../database/database.js');
 
 const testUser = { name: 'pizza diner', email: 'reg@test.com', password: 'a' };
 let testUserAuthToken;
@@ -24,6 +24,7 @@ test('login', async () => {
   expect(loginRes.body.token).toMatch(/^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/);
 
   const { password, ...user } = { ...testUser, roles: [{ role: 'diner' }] };
+  expect(password).toMatch(testUser.password);
   expect(loginRes.body.user).toMatchObject(user);
 });
 
