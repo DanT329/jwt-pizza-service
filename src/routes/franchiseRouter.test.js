@@ -47,6 +47,12 @@ function randomName() {
     adminAuthToken = adminLoginRes.body.token;
   });
 
+  afterAll(async () => {
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second
+    // I have not idea how to make sure the database closes but 1000 seems to make sure it has a chance before jest tears this all down.
+  });
+  
+
   test('should create a new franchise when the user is an admin', async () => {
     const newFranchise = {
       name: randomName(),
