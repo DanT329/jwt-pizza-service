@@ -31,7 +31,7 @@ export default {
 ```
 
 ## Endpoints
-
+..
 You can get the documentation for all endpoints by making the following request.
 
 ```sh
