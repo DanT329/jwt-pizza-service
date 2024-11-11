@@ -4,18 +4,18 @@ const config = require('./config.js'); // Ensure config has Grafana details
 
 class Metrics {
   constructor() {
-    // Counts for each HTTP method and total
     this.methodCounts = { get: 0, post: 0, put: 0, delete: 0, all: 0 };
-    this.purchases = []; // Array to hold purchase data
-
-    // Add counters for authentication attempts
+    this.purchases = [];
     this.authAttempts = { successful: 0, failed: 0 };
+    this.activeUsers = 0;
+
+    // Array to hold response times for latency calculation
+    this.responseTimes = [];
 
     // Set up periodic reporting every 1 minute (60000 milliseconds)
-    this.startPeriodicReporting(60000); // Report every 1 minute
+    this.startPeriodicReporting(60000);
   }
 
-  // Increment counts for authentication attempts
   incrementAuthAttempt(success) {
     if (success) {
       this.authAttempts.successful++;
@@ -24,29 +24,42 @@ class Metrics {
     }
   }
 
-  // Middleware to track incoming requests
+  incrementActiveUsers() {
+    this.activeUsers++;
+  }
+
+  decrementActiveUsers() {
+    if (this.activeUsers > 0) {
+      this.activeUsers--;
+    }
+  }
+
   requestTracker = (req, res, next) => {
-    // Increment the count for the request method
-    this.incrementRequestMethod(req.method.toLowerCase());
+    // Start timer for request
+    const start = Date.now();
+    
+    // Register response finish event to record response time
+    res.on('finish', () => {
+      const responseTime = Date.now() - start;
+      this.responseTimes.push(responseTime);
+      this.incrementRequestMethod(req.method.toLowerCase());
+    });
+
     next();
   };
 
   incrementRequestMethod(method) {
-    // Check if the method is valid and increment count
     if (method in this.methodCounts) {
       this.methodCounts[method]++;
     }
-    // Always increment the 'all' method for total count
     this.methodCounts.all++;
   }
 
-  // System Metrics: CPU usage
   getCpuUsagePercentage() {
     const cpuUsage = os.loadavg()[0] / os.cpus().length;
     return (cpuUsage * 100).toFixed(2);
   }
 
-  // System Metrics: Memory usage
   getMemoryUsagePercentage() {
     const totalMemory = os.totalmem();
     const freeMemory = os.freemem();
@@ -54,51 +67,62 @@ class Metrics {
     return ((usedMemory / totalMemory) * 100).toFixed(2);
   }
 
-  // Track a purchase metric
   recordPurchase(responseTime, quantity, cost, wasSuccessful) {
     this.purchases.push({ responseTime, quantity, cost, wasSuccessful });
   }
 
-  // Build and send all metrics to Grafana
+  // Calculate the average latency
+  calculateAverageLatency() {
+    const totalLatency = this.responseTimes.reduce((sum, time) => sum + time, 0);
+    return this.responseTimes.length ? (totalLatency / this.responseTimes.length) : 0;
+  }
+
   reportMetrics() {
     const buf = [];
 
-    // Request metrics (for each HTTP method and total)
     for (const method of ['get', 'post', 'put', 'delete', 'all']) {
       buf.push(`request,source=${config.metrics.source},method=${method} total=${this.methodCounts[method]}`);
     }
 
-    // System metrics (CPU and memory)
     buf.push(`system,source=${config.metrics.source},type=cpu usage=${this.getCpuUsagePercentage()}`);
     buf.push(`system,source=${config.metrics.source},type=memory usage=${this.getMemoryUsagePercentage()}`);
 
-    // Purchase metrics
-    this.purchases.forEach((purchase, index) => {
-      buf.push(`purchase,source=${config.metrics.source},index=${index} responseTime=${purchase.responseTime},quantity=${purchase.quantity},cost=${purchase.cost},success=${purchase.wasSuccessful ? 1 : 0}`);
-    });
+    const totalRevenue = this.purchases.reduce((sum, p) => sum + p.cost, 0);
+    const totalQuantity = this.purchases.reduce((sum, p) => sum + p.quantity, 0);
+    const successfulPurchases = this.purchases.filter(p => p.wasSuccessful).length;
+    const failedPurchases = this.purchases.length - successfulPurchases;
+    const avgPurchaseLatency = this.purchases.length
+      ? this.purchases.reduce((sum, p) => sum + p.responseTime, 0) / this.purchases.length
+      : 0;
 
-    // Authentication attempt metrics
+    buf.push(`purchase,source=${config.metrics.source},metric=total_revenue value=${totalRevenue}`);
+    buf.push(`purchase,source=${config.metrics.source},metric=total_quantity value=${totalQuantity}`);
+    buf.push(`purchase,source=${config.metrics.source},metric=successful_purchases value=${successfulPurchases}`);
+    buf.push(`purchase,source=${config.metrics.source},metric=failed_purchases value=${failedPurchases}`);
+    buf.push(`purchase,source=${config.metrics.source},metric=average_purchase_latency value=${avgPurchaseLatency}`);
+
+    // Add average latency for all requests
+    const avgServiceLatency = this.calculateAverageLatency();
+    buf.push(`service,source=${config.metrics.source},metric=average_latency value=${avgServiceLatency}`);
+
     buf.push(`auth_attempts,source=${config.metrics.source},type=successful total=${this.authAttempts.successful}`);
     buf.push(`auth_attempts,source=${config.metrics.source},type=failed total=${this.authAttempts.failed}`);
+    buf.push(`active_users,source=${config.metrics.source} count=${this.activeUsers}`);
 
-    // Send all metrics as a single batch
     const metrics = buf.join('\n');
     this.sendMetricToGrafana(metrics);
 
-    // Reset tracked purchases and authentication attempts after reporting
+    // Reset data after reporting
     this.purchases = [];
     this.authAttempts = { successful: 0, failed: 0 };
-
-    // Reset method counts after sending to Grafana
+    this.responseTimes = [];
     this.resetMethodCounts();
   }
 
-  // Reset the method counts after reporting to Grafana
   resetMethodCounts() {
     this.methodCounts = { get: 0, post: 0, put: 0, delete: 0, all: 0 };
   }
 
-  // Send data to Grafana
   sendMetricToGrafana(metrics) {
     fetch(config.metrics.url, {
       method: 'POST',
@@ -120,7 +144,6 @@ class Metrics {
     });
   }
 
-  // Start periodic reporting
   startPeriodicReporting(period) {
     setInterval(() => {
       try {
@@ -134,5 +157,3 @@ class Metrics {
 
 const metrics = new Metrics();
 module.exports = metrics;
-
-

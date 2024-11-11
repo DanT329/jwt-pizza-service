@@ -3,6 +3,7 @@ const config = require('../config.js');
 const { Role, DB } = require('../database/database.js');
 const { authRouter } = require('./authRouter.js');
 const { asyncHandler, StatusCodeError } = require('../endpointHelper.js');
+const metrics = require('../metrics');
 
 const orderRouter = express.Router();
 
@@ -73,11 +74,16 @@ orderRouter.get(
 );
 
 // createOrder
+// createOrder
 orderRouter.post(
   '/',
   authRouter.authenticateToken,
   asyncHandler(async (req, res) => {
     const orderReq = req.body;
+
+    // Start a timer to measure response time
+    const start = Date.now();
+
     const order = await DB.addDinerOrder(req.user, orderReq);
     const r = await fetch(`${config.factory.url}/api/order`, {
       method: 'POST',
@@ -85,6 +91,16 @@ orderRouter.post(
       body: JSON.stringify({ diner: { id: req.user.id, name: req.user.name, email: req.user.email }, order }),
     });
     const j = await r.json();
+
+    // Calculate the response time
+    const responseTime = Date.now() - start;
+    const wasSuccessful = r.ok;
+    const quantity = order.items.length;
+    const cost = order.items.reduce((sum, item) => sum + item.price, 0); // Calculate total cost
+
+    // Record the purchase metrics
+    metrics.recordPurchase(responseTime, quantity, cost, wasSuccessful);
+
     if (r.ok) {
       res.send({ order, jwt: j.jwt, reportUrl: j.reportUrl });
     } else {
@@ -92,5 +108,6 @@ orderRouter.post(
     }
   })
 );
+
 
 module.exports = orderRouter;
