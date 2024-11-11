@@ -4,9 +4,11 @@ const orderRouter = require('./routes/orderRouter.js');
 const franchiseRouter = require('./routes/franchiseRouter.js');
 const version = require('./version.json');
 const config = require('./config.js');
+const metrics = require('./metrics'); // Import metrics module
 
 const app = express();
 app.use(express.json());
+app.use(metrics.requestTracker); // Use metrics middleware to track requests
 app.use(setAuthUser);
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -50,3 +52,4 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+
