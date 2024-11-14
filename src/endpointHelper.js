@@ -1,6 +1,8 @@
+const logger = require('./logger'); // Import logger module
 class StatusCodeError extends Error {
   constructor(message, statusCode) {
     super(message);
+    logger.errorLogger(this);
     this.statusCode = statusCode;
   }
 }
