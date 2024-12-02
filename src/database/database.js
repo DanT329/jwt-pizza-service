@@ -101,12 +101,12 @@ class DB {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
-      await this.query(connection, `INSERT INTO auth (token, userId) VALUES (?, ?)`, [token, userId]);
+      await this.query(connection, 'INSERT INTO auth (token, userId) VALUES (?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token)', [token, userId]);
     } finally {
       connection.end();
     }
   }
-
+  
   async isLoggedIn(token) {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
