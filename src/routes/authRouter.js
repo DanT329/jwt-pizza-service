@@ -121,26 +121,9 @@ authRouter.put(
 );
 
 async function setAuth(user) {
-  const maxAttempts = 5; // Limit retries to prevent infinite loops
-  let attempts = 0;
-
-  while (attempts < maxAttempts) {
-    const token = jwt.sign(user, config.jwtSecret); // Generate a new token
-    try {
-      await DB.loginUser(user.id, token); // Attempt to insert the token
-      return token; // Success: Return the token
-    } catch (err) {
-      if (err.code === 'ER_DUP_ENTRY') {
-        console.warn(`Duplicate token detected, regenerating (attempt ${attempts + 1})`);
-        await DB.logoutUser(token); // Clear the existing token
-        attempts++;
-      } else {
-        throw err; // Rethrow non-duplicate errors
-      }
-    }
-  }
-
-  throw new Error('Failed to generate a unique token after multiple attempts');
+  const token = jwt.sign(user, config.jwtSecret);
+  await DB.loginUser(user.id, token);
+  return token;
 }
 
 
