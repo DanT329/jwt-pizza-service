@@ -132,6 +132,7 @@ async function setAuth(user) {
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
         console.warn(`Duplicate token detected, regenerating (attempt ${attempts + 1})`);
+        await DB.logoutUser(token); // Clear the existing token
         attempts++;
       } else {
         throw err; // Rethrow non-duplicate errors
